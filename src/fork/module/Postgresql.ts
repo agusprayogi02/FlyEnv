@@ -1,8 +1,9 @@
-import { join, dirname, basename } from 'path'
-import { existsSync, readdirSync } from 'fs'
-import { Base } from './Base'
 import { I18nT } from '@lang/index'
 import type { OnlineVersionItem, SoftInstalled } from '@shared/app'
+import { ForkPromise } from '@shared/ForkPromise'
+import { existsSync, readdirSync } from 'fs'
+import { chmod, copyFile, mkdirp, readFile, writeFile } from 'fs-extra'
+import { basename, dirname, join } from 'path'
 import {
   AppLog,
   execPromise,
@@ -14,9 +15,8 @@ import {
   versionSort,
   waitTime
 } from '../Fn'
-import { ForkPromise } from '@shared/ForkPromise'
-import { chmod, copyFile, mkdirp, readFile, writeFile } from 'fs-extra'
 import TaskQueue from '../TaskQueue'
+import { Base } from './Base'
 
 class Manager extends Base {
   constructor() {
@@ -138,6 +138,46 @@ class Manager extends Base {
       } else {
         reject(new Error(`Data Dir ${dbPath} has exists, but conf file not found in dir`))
       }
+    })
+  }
+
+  _stopServer(version: SoftInstalled): ForkPromise<{ 'APP-Service-Stop-PID': number[] }> {
+    return new ForkPromise(async (resolve, reject, on) => {
+      on({
+        'APP-On-Log': AppLog('info', I18nT('appLog.stopServiceBegin', { service: this.type }))
+      })
+      const bin = version.bin
+      const versionTop = version?.version?.split('.')?.shift() ?? ''
+      const dbPath = join(global.Server.PostgreSqlDir!, `postgresql${versionTop}`)
+      const confFile = join(dbPath, 'postgresql.conf')
+      const pidFile = join(dbPath, 'postmaster.pid')
+
+      if (!existsSync(confFile)) {
+        resolve({
+          'APP-Service-Stop-PID': []
+        })
+        return
+      }
+
+      const execArgs = `-D "${dbPath}" stop`
+      try {
+        await serviceStartExecCMD(
+          version,
+          pidFile,
+          global.Server.PostgreSqlDir!,
+          bin,
+          execArgs,
+          '',
+          on
+        )
+      } catch (e) {
+        reject(e)
+        return
+      }
+
+      resolve({
+        'APP-Service-Stop-PID': []
+      })
     })
   }
 
