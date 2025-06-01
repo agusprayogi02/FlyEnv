@@ -151,6 +151,7 @@ class Manager extends Base {
       const dbPath = join(global.Server.PostgreSqlDir!, `postgresql${versionTop}`)
       const confFile = join(dbPath, 'postgresql.conf')
       const pidFile = join(dbPath, 'postmaster.pid')
+      const logFile = join(dbPath, 'pg.log')
 
       if (!existsSync(confFile)) {
         resolve({
@@ -159,7 +160,7 @@ class Manager extends Base {
         return
       }
 
-      const execArgs = `-D "${dbPath}" stop`
+      const execArgs = `-D "${dbPath}" stop -m fast -l "${logFile}"`
       try {
         await serviceStartExecCMD(
           version,
